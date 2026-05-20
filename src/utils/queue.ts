@@ -1,6 +1,19 @@
+export type ColorStreamType = 'color' | 'brightness';
+
+export function getColorStreamType(payload: unknown): ColorStreamType | undefined {
+    if (payload && typeof payload === 'object' && !Array.isArray(payload)) {
+        const p = payload as Record<string, unknown>;
+        if ('colorx' in p || 'enhancehue' in p) return 'color';
+        if ('level' in p) return 'brightness';
+    }
+    return undefined;
+}
+
 interface Job {
     key?: string | number;
     running: boolean;
+    colorStreamType?: ColorStreamType;
+    cancelled?: boolean;
     start?: () => void;
 }
 
@@ -13,8 +26,8 @@ export class Queue {
         this.#concurrent = concurrent;
     }
 
-    public async execute<T>(func: () => Promise<T>, key?: string | number): Promise<T> {
-        const job: Job = {key, running: false};
+    public async execute<T>(func: () => Promise<T>, key?: string | number, colorStreamType?: ColorStreamType): Promise<T> {
+        const job: Job = {key, running: false, colorStreamType};
         this.#jobs.push(job);
 
         // Minor optimization/workaround: various tests like the idea that a job that is immediately runnable is run without an event loop spin.
@@ -35,6 +48,9 @@ export class Queue {
         }
 
         try {
+            if (job.cancelled) {
+                return undefined as T;
+            }
             return await func();
         } finally {
             this.#jobs.splice(this.#jobs.indexOf(job), 1);
@@ -68,12 +84,25 @@ export class Queue {
         return undefined;
     }
 
+    public cancelOldRequest(key: string | number, colorStreamType: ColorStreamType): number {
+        let cancelled = 0;
+
+        for (const job of this.#jobs) {
+            if (!job.running && job.key === key && job.colorStreamType === colorStreamType) {
+                job.cancelled = true;
+                cancelled++;
+            }
+        }
+
+        return cancelled;
+    }
+
     public clear(): void {
         this.#running = 0;
         this.#jobs.length = 0;
     }
 
     public count(): number {
-        return this.#jobs.length;
+        return this.#jobs.filter((j) => !j.cancelled).length;
     }
 }

@@ -1,7 +1,7 @@
 import assert from "node:assert";
 import debounce from "debounce";
 import type * as Models from "../../../models";
-import {Queue, Waitress, wait} from "../../../utils";
+import {Queue, Waitress, wait, getColorStreamType} from "../../../utils";
 import {logger} from "../../../utils/logger";
 import * as ZSpec from "../../../zspec";
 import type {BroadcastAddress} from "../../../zspec/enums";
@@ -466,6 +466,11 @@ export class ZStackAdapter extends Adapter {
         profileId?: number,
     ): Promise<Events.ZclPayload | undefined> {
         const srcEndpoint = this.selectSourceEndpoint(sourceEndpoint, profileId);
+        const colorStreamType = getColorStreamType(zclFrame.payload);
+
+        if (colorStreamType) {
+            this.queue.cancelOldRequest(networkAddress, colorStreamType);
+        }
 
         return await this.queue.execute<Events.ZclPayload | undefined>(async () => {
             this.checkInterpanLock();
@@ -485,7 +490,7 @@ export class ZStackAdapter extends Adapter {
                 false,
                 undefined,
             );
-        }, networkAddress);
+        }, networkAddress, colorStreamType);
     }
 
     private async sendZclFrameToEndpointInternal(

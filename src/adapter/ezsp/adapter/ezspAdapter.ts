@@ -2,7 +2,7 @@
 
 import assert from "node:assert";
 import type * as Models from "../../../models";
-import {Queue, Waitress, wait} from "../../../utils";
+import {Queue, Waitress, wait, getColorStreamType} from "../../../utils";
 import {logger} from "../../../utils/logger";
 import * as ZSpec from "../../../zspec";
 import * as Zcl from "../../../zspec/zcl";
@@ -325,6 +325,12 @@ export class EZSPAdapter extends Adapter {
         sourceEndpoint?: number,
         profileId?: number,
     ): Promise<ZclPayload | undefined> {
+        const colorStreamType = getColorStreamType(zclFrame.payload);
+
+        if (colorStreamType) {
+            this.queue.cancelOldRequest(networkAddress, colorStreamType);
+        }
+
         return await this.queue.execute<ZclPayload | undefined>(async () => {
             this.checkInterpanLock();
             return await this.sendZclFrameToEndpointInternal(
@@ -340,7 +346,7 @@ export class EZSPAdapter extends Adapter {
                 0,
                 profileId,
             );
-        }, networkAddress);
+        }, networkAddress, colorStreamType);
     }
 
     private async sendZclFrameToEndpointInternal(

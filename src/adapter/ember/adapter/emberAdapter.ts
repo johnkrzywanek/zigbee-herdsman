@@ -4,7 +4,7 @@ import path from "node:path";
 
 import equals from "fast-deep-equal/es6";
 import type {Backup} from "../../../models";
-import {BackupUtils, Queue, wait} from "../../../utils";
+import {BackupUtils, Queue, wait, getColorStreamType} from "../../../utils";
 import {logger} from "../../../utils/logger";
 import * as ZSpec from "../../../zspec";
 import type {Eui64, ExtendedPanId, NodeId, PanId} from "../../../zspec/tstypes";
@@ -1966,6 +1966,11 @@ export class EmberAdapter extends Adapter {
         }
 
         const data = zclFrame.toBuffer();
+        const colorStreamType = getColorStreamType(zclFrame.payload);
+
+        if (colorStreamType) {
+            this.queue.cancelOldRequest(networkAddress, colorStreamType);
+        }
 
         return await this.queue.execute<ZclPayload | undefined>(async () => {
             this.checkInterpanLock();
@@ -2043,7 +2048,7 @@ export class EmberAdapter extends Adapter {
 
                 return result;
             }
-        }, networkAddress);
+        }, networkAddress, colorStreamType);
     }
 
     // queued, non-InterPAN
